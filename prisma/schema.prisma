@@ -8,16 +8,43 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TheaterType {
+  REGULAR
+  IMAX
+  VELVET
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  EXPIRED
+}
+
 model User {
   id            String    @id
   name          String
   email         String
+  role          Role    @default(USER)
   emailVerified Boolean   @default(false)
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  orders      Order[]
 
   @@unique([email])
   @@map("user")
@@ -70,3 +97,166 @@ model Verification {
   @@index([identifier])
   @@map("verification")
 }
+
+model Movie {
+  id String @id @default(cuid())
+  title String
+  description String
+  duration Int
+  posterUrl String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  showtimes Showtime[]
+
+  @@map("movie")
+}
+
+model Cinema {
+  id String @id @default(uuid())
+  name String
+  city String
+  address String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  theaters Theater[]
+  ticketPrices TicketPrice[]
+}
+
+model Theater {
+  id String @id @default(uuid())
+  name String
+  cinemaId String
+  type TheaterType
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cinema Cinema @relation(fields: [cinemaId], references: [id], onDelete: Cascade)
+  seats Seat[]
+  showtimes Showtime[]
+}
+
+model TicketPrice {
+  id        String      @id @default(uuid())
+  cinemaId  String
+  type      TheaterType
+  price     Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cinema    Cinema      @relation(fields: [cinemaId], references: [id], onDelete: Cascade)
+
+  @@unique([cinemaId, type])
+}
+
+model Seat {
+  id       String   @id @default(uuid())
+  theaterId String
+  row String
+  number Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderSeats OrderSeat[]
+
+  theater  Theater  @relation(fields: [theaterId], references: [id], onDelete: Cascade)
+
+  @@unique([theaterId, row, number])
+}
+
+model Showtime {
+  id       String   @id @default(uuid())
+  movieId   String
+  theaterId String
+  startTime DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  theater   Theater  @relation(fields: [theaterId], references: [id], onDelete: Cascade)
+  orders  Order[]
+  orderSeats OrderSeat[]
+
+  @@unique([movieId, theaterId, startTime])
+  @@index([theaterId, startTime]) 
+}
+
+model Order {
+  id         String        @id @default(uuid())
+  userId     String
+  showtimeId String
+  status     OrderStatus @default(PENDING)
+  totalPrice Int
+  expiresAt   DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  showtime Showtime @relation(fields: [showtimeId], references: [id])
+  seats    OrderSeat[]
+  payments  Payment[]
+
+  @@index([userId])
+  @@index([showtimeId])
+  @@index([status, createdAt])
+  @@map("order")
+}
+
+model OrderSeat {
+  id        String @id @default(uuid())
+  orderId String
+  seatId    String
+  showtimeId String
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seat    Seat    @relation(fields: [seatId], references: [id])
+  showtime Showtime @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+
+  @@unique([showtimeId, seatId])
+  @@index([orderId])
+  @@map("order_seat")
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  orderId   String        @unique
+  amount      Int
+  status      PaymentStatus @default(PENDING)
+  paymentUrl  String?
+  transactionId String? @unique
+  paymentRequestId String? @unique
+  idempotencyKey String @unique
+  paidAt    DateTime?
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@map("payment")
+}
+
+model PaymentWebhook {
+  id        String   @id @default(uuid())
+  paymentId String?  
+  provider  String   @default("XENDIT")
+  status    String
+  payload   Json
+
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@map("payment_webhook")
+}
+
+
