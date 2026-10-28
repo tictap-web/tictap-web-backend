@@ -99,18 +99,44 @@ model Verification {
 }
 
 model Movie {
-  id String @id @default(cuid())
-  title String
-  description String
-  duration Int
-  posterUrl String
+  id              String      @id @default(cuid())
+  title           String
+  description     String
+  duration        Int
+  posterUrl       String
+  backdropUrl     String?
+  ageRating       String      @default("13+")
+  releaseYear     Int?
+  genres          String[]    @default([])
+  rating          Float?
+  reviewCount     Int?
+  audienceScore   Int?
+  trailerUrl      String?
+  trailerDuration String?
+  viewerMilestone String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   showtimes Showtime[]
+  cast      MovieCast[]
 
   @@map("movie")
+}
+
+model MovieCast {
+  id         String  @id @default(cuid())
+  movieId    String
+  name       String
+  role       String
+  imageUrl   String
+  isDirector Boolean @default(false)
+  sortOrder  Int     @default(0)
+
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@index([movieId, sortOrder])
+  @@map("movie_cast")
 }
 
 model Cinema {
@@ -258,5 +284,4 @@ model PaymentWebhook {
   @@index([paymentId])
   @@map("payment_webhook")
 }
-
 
